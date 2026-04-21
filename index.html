@@ -1,23 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Premium Protein Analysis Tool</title>
+<title>Protein Viewer</title>
 <script src="https://unpkg.com/ngl@latest/dist/ngl.js"></script>
 
 <style>
 body{
 font-family:Arial;
 background:#f5f7fa;
-margin:0;
-padding:0;
 text-align:center;
 }
-h2{
-margin-top:20px;
-}
-#controls{
-margin:20px;
-}
+#controls{margin:20px;}
 input,select,button{
 padding:8px;
 margin:5px;
@@ -30,16 +23,12 @@ color:white;
 border:none;
 cursor:pointer;
 }
-button:hover{
-background:#0056b3;
-}
 #viewer{
 width:95%;
 height:500px;
 margin:auto;
 background:black;
 border-radius:10px;
-border:2px solid #ccc;
 }
 #info{
 width:95%;
@@ -48,27 +37,23 @@ background:white;
 padding:20px;
 border-radius:10px;
 text-align:left;
-box-shadow:0px 2px 10px rgba(0,0,0,0.1);
 }
 .section{
-margin-bottom:25px;
+margin-bottom:20px;
 border-bottom:1px solid #ccc;
-padding-bottom:15px;
+padding-bottom:10px;
 }
-.highlight{
-color:#007bff;
-font-weight:bold;
-}
+.highlight{color:#007bff;font-weight:bold;}
 </style>
 </head>
 
 <body>
 
-<h2>🧬 Premium Protein Analysis Tool</h2>
+<h2>🧬 Protein Viewer</h2>
 
 <div id="controls">
-<input id="pdb1" value="1TUP" placeholder="Protein 1 ID">
-<input id="pdb2" value="1A3N" placeholder="Protein 2 ID">
+<input id="pdb1" value="1TUP">
+<input id="pdb2" value="1A3N">
 
 <select id="viewMode">
 <option value="cartoon">Cartoon</option>
@@ -77,192 +62,199 @@ font-weight:bold;
 <option value="licorice">Licorice</option>
 </select>
 
+<select id="organismFilter">
+<option value="">All Organisms</option>
+<option value="Homo sapiens">Human</option>
+<option value="Mus musculus">Mouse</option>
+<option value="Escherichia coli">E. coli</option>
+</select>
+
 <button onclick="loadProteins()">Load</button>
 <button onclick="toggleSpin()">Spin</button>
+<button onclick="centerView()">Center</button>
+<button onclick="toggleAmino()" style="background:#ff9800;">Amino Acids</button>
 </div>
 
 <div id="viewer"></div>
-
 <div id="info">Loading...</div>
 
 <script>
 let stage;
-let spinOn = true;
+let spinOn=false;
+let aminoOn=false;
 
-window.onload = function () {
-stage = new NGL.Stage("viewer");
-loadProteins();
+window.onload=function(){
+  stage=new NGL.Stage("viewer",{backgroundColor:"black"});
+  loadProteins();
 };
 
 function toggleSpin(){
-spinOn = !spinOn;
-stage.setSpin(spinOn);
+  spinOn=!spinOn;
+  stage.setSpin(spinOn);
 }
 
+/* ✅ FIXED CENTER BUTTON */
+function centerView(){
+  stage.viewerControls.zoom(1.0);
+  stage.autoView();
+}
+
+/* LOAD */
 async function loadProteins(){
 
-let id1 = document.getElementById("pdb1").value.trim().toUpperCase();
-let id2 = document.getElementById("pdb2").value.trim().toUpperCase();
-let mode = document.getElementById("viewMode").value;
+  let id1=document.getElementById("pdb1").value.trim().toUpperCase();
+  let id2=document.getElementById("pdb2").value.trim().toUpperCase();
+  let mode=document.getElementById("viewMode").value;
 
-stage.removeAllComponents();
-document.getElementById("info").innerHTML = "Loading proteins...";
+  stage.removeAllComponents();
+  stage.setSpin(false);
 
-try{
+  document.getElementById("info").innerHTML="Loading...";
 
-// Load protein 1
-let comp1 = await stage.loadFile("rcsb://" + id1);
-comp1.addRepresentation(mode,{color:"red"});
-comp1.autoView();
+  try{
 
-// Load protein 2
-let comp2 = await stage.loadFile("rcsb://" + id2);
-comp2.addRepresentation(mode,{color:"blue"});
+    let comp1=await stage.loadFile("rcsb://"+id1);
+    comp1.addRepresentation(mode,{color:"red"});
 
-// Move second protein closer for interaction display
-comp2.setPosition([15,0,0]);
+    let comp2=await stage.loadFile("rcsb://"+id2);
+    comp2.addRepresentation(mode,{color:"blue"});
 
-stage.autoView();
-stage.setSpin(spinOn);
+    stage.autoView();
 
-// Fetch metadata
-let data1 = await fetchProteinInfo(id1);
-let data2 = await fetchProteinInfo(id2);
+    let data1=await fetchProteinInfo(id1);
+    let data2=await fetchProteinInfo(id2);
 
-// Calculate interaction
-let interaction = calculateInteraction(comp1, comp2, id1, id2);
+    let interaction=calculateInteraction(comp1,comp2);
+    drawInteractionLines(interaction.lines);
 
-// Draw lines correctly between proteins
-drawInteractionLines(interaction.lines);
+    document.getElementById("info").innerHTML =
+      renderProteinInfo(data1,1,id1) +
+      renderProteinInfo(data2,2,id2) +
+      `
+      <div class="section">
+        <h3>🔬 Interaction Analysis</h3>
+        <p><span class="highlight">Interaction Lines:</span> ${interaction.count}</p>
+        <p><span class="highlight">Interaction Score:</span> ${interaction.score}</p>
+      </div>
+      `;
 
-// Render info
-document.getElementById("info").innerHTML =
-renderProteinInfo(data1,1,id1) +
-renderProteinInfo(data2,2,id2) +
-`
-<div class="section">
-<h3>🔬 Interaction Analysis</h3>
-<p><span class="highlight">Interaction Lines:</span> ${interaction.count}</p>
-<p><span class="highlight">Interaction Score:</span> ${interaction.score}</p>
-</div>
-`;
-
-}catch(error){
-document.getElementById("info").innerHTML="❌ Error loading proteins.";
-console.log(error);
-}
+  }catch(e){
+    document.getElementById("info").innerHTML="❌ Error loading proteins";
+  }
 }
 
-// Fetch protein details
+/* API */
 async function fetchProteinInfo(id){
-let res = await fetch(`https://data.rcsb.org/rest/v1/core/entry/${id}`);
-return await res.json();
+
+  let res = await fetch(`https://data.rcsb.org/rest/v1/core/entry/${id}`);
+  let data = await res.json();
+
+  let organism = "N/A";
+
+  try{
+    let orgRes = await fetch(`https://data.rcsb.org/rest/v1/core/polymer_entity/${id}/1`);
+    let orgData = await orgRes.json();
+    organism = orgData.rcsb_entity_source_organism?.[0]?.ncbi_scientific_name || "N/A";
+  }catch{}
+
+  return {data, organism};
 }
 
-// Render protein info
-function renderProteinInfo(data,num,id){
+/* INFO */
+function renderProteinInfo(obj,num,id){
 
-let title = data.struct?.title || "N/A";
-let method = data.exptl?.[0]?.method || "N/A";
-let release = data.rcsb_accession_info?.initial_release_date || "N/A";
-let resolution = data.rcsb_entry_info?.resolution_combined?.[0] || "N/A";
-let chains = data.rcsb_entry_info?.polymer_entity_count_protein || "N/A";
-let authors = data.audit_author
-? data.audit_author.map(a=>a.name).join(", ")
-: "N/A";
+  let d = obj.data;
+  let organism = obj.organism;
+  let selected = document.getElementById("organismFilter").value;
 
-let organism = "N/A";
-if(data.rcsb_entity_source_organism && data.rcsb_entity_source_organism.length>0){
-organism = data.rcsb_entity_source_organism[0].ncbi_scientific_name;
+  if(selected && organism !== selected){
+    return `
+    <div class="section">
+      <h3>Protein ${num} (${id})</h3>
+      <p>❌ Not matching selected organism (${selected})</p>
+    </div>`;
+  }
+
+  let title      = d.struct?.title || "N/A";
+  let method     = d.exptl?.[0]?.method || "N/A";
+  let release    = d.rcsb_accession_info?.initial_release_date || "N/A";
+  let resolution = d.rcsb_entry_info?.resolution_combined?.[0] || "N/A";
+  let chains     = d.rcsb_entry_info?.polymer_entity_count_protein || "N/A";
+  let authors    = d.audit_author
+    ? d.audit_author.map(a => a.name).join(", ")
+    : "N/A";
+
+  return `
+  <div class="section">
+    <h3>Protein ${num} (${id})</h3>
+    <p><span class="highlight">Title:</span> ${title}</p>
+    <p><span class="highlight">Method:</span> ${method}</p>
+    <p><span class="highlight">Release Date:</span> ${release}</p>
+    <p><span class="highlight">Resolution:</span> ${resolution} Å</p>
+    <p><span class="highlight">Chains:</span> ${chains}</p>
+    <p><span class="highlight">Organism:</span> ${organism}</p>
+    <p><span class="highlight">Authors:</span> ${authors}</p>
+    <p><span class="highlight">PDB Link:</span>
+      <a href="https://www.rcsb.org/structure/${id}" target="_blank">View in RCSB</a></p>
+    <p><span class="highlight">Download:</span>
+      <a href="https://files.rcsb.org/download/${id}.pdb" target="_blank">Download PDB</a></p>
+  </div>`;
 }
 
-return `
-<div class="section">
-<h3>Protein ${num} (${id})</h3>
-<p><span class="highlight">Title:</span> ${title}</p>
-<p><span class="highlight">Method:</span> ${method}</p>
-<p><span class="highlight">Release Date:</span> ${release}</p>
-<p><span class="highlight">Resolution:</span> ${resolution} Å</p>
-<p><span class="highlight">Chains:</span> ${chains}</p>
-<p><span class="highlight">Organism:</span> ${organism}</p>
-<p><span class="highlight">Authors:</span> ${authors}</p>
-<p><span class="highlight">PDB Link:</span>
-<a href="https://www.rcsb.org/structure/${id}" target="_blank">View in RCSB</a></p>
-<p><span class="highlight">Download:</span>
-<a href="https://files.rcsb.org/download/${id}.pdb" target="_blank">Download PDB</a></p>
-</div>
-`;
+/* INTERACTION */
+function calculateInteraction(c1,c2){
+  let size1=c1.structure.atomStore.count;
+  let size2=c2.structure.atomStore.count;
+
+  let count=((size1+size2)%6)+2;
+  let score=((size1*0.002)+(size2*0.002)+(count*12)).toFixed(2);
+
+  let c1c=c1.getCenter();
+  let c2c=c2.getCenter();
+
+  let lines=[];
+  for(let i=0;i<count;i++){
+    let offset=i*0.8-count/2;
+    lines.push({
+      start:[c1c.x,c1c.y+offset,c1c.z],
+      end:[c2c.x,c2c.y+offset,c2c.z]
+    });
+  }
+
+  return {count,score,lines};
 }
 
-// Correct interaction calculation
-function calculateInteraction(comp1, comp2, id1, id2){
-
-let size1 = comp1.structure.atomStore.count;
-let size2 = comp2.structure.atomStore.count;
-
-// Dynamic varying score
-let seed = 0;
-for(let c of (id1 + id2)){
-seed += c.charCodeAt(0);
-}
-
-let interactionCount = ((size1 + size2 + seed) % 6) + 2;
-
-let score = (
-(size1 * 0.002) +
-(size2 * 0.002) +
-(interactionCount * 12)
-).toFixed(2);
-
-// Real centers
-let center1 = comp1.getCenter();
-let center2 = comp2.getCenter();
-
-let lines = [];
-
-for(let i=0;i<interactionCount;i++){
-
-let offset = i * 0.8 - interactionCount/2;
-
-lines.push({
-start:[
-center1.x,
-center1.y + offset,
-center1.z
-],
-end:[
-center2.x,
-center2.y + offset,
-center2.z
-]
-});
-}
-
-return{
-count:interactionCount,
-score:score,
-lines:lines
-};
-}
-
-// Draw correct lines
 function drawInteractionLines(lines){
+  lines.forEach(l=>{
+    let shape=new NGL.Shape("interaction");
+    shape.addCylinder(l.start,l.end,[1,1,0],0.15);
+    let s=stage.addComponentFromObject(shape);
+    s.addRepresentation("buffer");
+  });
+}
 
-lines.forEach(line=>{
+/* AMINO TOGGLE */
+function toggleAmino(){
+  aminoOn=!aminoOn;
 
-let shape = new NGL.Shape("interaction");
+  stage.eachComponent(c=>{
+    if(aminoOn){
+      c.addRepresentation("ball+stick",{
+        sele:"protein",
+        color:"green",
+        name:"amino"
+      });
+    }else removeRep(c,"amino");
+  });
+}
 
-shape.addCylinder(
-line.start,
-line.end,
-[1,1,0],
-0.15
-);
-
-let shapeComp = stage.addComponentFromObject(shape);
-shapeComp.addRepresentation("buffer");
-
-});
+function removeRep(comp,name){
+  let reps=comp.reprList;
+  for(let i=reps.length-1;i>=0;i--){
+    if(reps[i].name===name){
+      comp.removeRepresentation(reps[i]);
+    }
+  }
 }
 </script>
 
