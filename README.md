@@ -1,12 +1,12 @@
-# 🧬PROTEIN VISION
+# 🧬 PROTEIN VISION
+
 <p align="center">
   <img src="protein-ui.png.png" width="900"/>
 </p>
-<<div align="center">
 
-<img width="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:000000,50:0a1f44,100:00c6ff&height=220&section=header&text=PROTEIN%20VISION&fontSize=65&fontColor=00eaff&fontAlignY=38&desc=3D%20Protein%20Visualization%20%26%20Analysis%20Tool&descAlignY=60&descColor=90e0ef&animation=fadeIn" />
-
-</div>
+<p align="center">
+  <b>Explore • Visualize • Analyze Protein Structures in 3D</b>
+</p>
 
 ---
 
